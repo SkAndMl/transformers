@@ -34,6 +34,7 @@ class IMDBBERTDataset(Dataset):
         self.masked_token = []
         self.masked_idx = []
         self.is_next = []
+        self.segment_tokens = []
         self._prepare_data()
         
 
@@ -44,11 +45,11 @@ class IMDBBERTDataset(Dataset):
                 if random.random() <= self.NSP_PERCENTAGE:
                     rand_idx = random.randint(0, len(sentences)-2)
                     sentences = sentences[rand_idx:rand_idx+2]
-                    self.is_next.append(0)
+                    is_next = 0
                 else:
                     rand_idx = random.randint(1, len(sentences)-1)
                     sentences = [sentences[rand_idx], sentences[rand_idx-1]]
-                    self.is_next.append(1)
+                    is_next = 1
                 
                 sentences = ["[CLS]"] + self.tokenizer(sentences[0]) + ["[SEP]"] + self.tokenizer(sentences[1])
                 if len(sentences) < self.max_sent_len:
@@ -57,6 +58,11 @@ class IMDBBERTDataset(Dataset):
                 else:
                     sentences = sentences[:self.max_sent_len]
                 
+                sep_idx = sentences.index("[SEP]")
+                segment_token = [0]*(sep_idx+1) + [1]*(len(sentences)-1-sep_idx)
+
+                # assert len(segment_token) == len(sentences), f"Length not equal, sep_idx: {sep_idx} "
+
                 token_ids = self.vocab(sentences)
                 mask_token, mask_idx = self.SEP_TOKEN, -1
                 while mask_token == self.SEP_TOKEN:
@@ -66,12 +72,14 @@ class IMDBBERTDataset(Dataset):
                 self.token_ids.append(token_ids)
                 self.masked_token.append(mask_token)
                 self.masked_idx.append(mask_idx)
+                self.segment_tokens.append(segment_token)
+                self.is_next.append(is_next)
             except:
                 pass
  
-        
         self.bert_df = pd.DataFrame(data={
             "token_ids" : self.token_ids,
+            "segment_tokens" : self.segment_tokens,
             "masked_token" : self.masked_token,
             "masked_idx" : self.masked_idx,
             "is_next" : self.is_next
@@ -81,12 +89,13 @@ class IMDBBERTDataset(Dataset):
         for sentence in data_iter:
             yield self.tokenizer(sentence)
     
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int, int, int]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, int, int, int]:
         token_ids = self.token_ids[index]
+        segment_tokens = self.segment_tokens[index]
         masked_token = self.masked_token[index]
         masked_idx = self.masked_idx[index]
         is_next = self.is_next[index]
-        return token_ids, masked_token, masked_idx, is_next
+        return torch.tensor(token_ids), torch.tensor(segment_tokens), masked_token, masked_idx, is_next
     
     def __len__(self) -> int:
         return self.bert_df.shape[0]
@@ -95,3 +104,4 @@ if __name__ == "__main__":
     ds = IMDBBERTDataset(path="../data/IMDB.csv")
     print(f"Shape: {ds.bert_df.shape}")
     print(ds.bert_df.head(10))
+    print(ds[0])
