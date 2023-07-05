@@ -30,5 +30,5 @@ class TransformerEmbedding(nn.Module):
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x -> [batch_size, seq_len]
-        embed_out = self.embedding(x) # embed_out -> [batch_size, seq_len, ]
+        embed_out = self.embedding(x) # embed_out -> [batch_size, seq_len, d_model]
         return self.dropout(self.pe[:, embed_out.size(1), :] + embed_out)
