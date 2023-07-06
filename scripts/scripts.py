@@ -13,6 +13,16 @@ class TransformerEmbedding(nn.Module):
                  max_seq_len: int=10,
                  dropout: float=0.1):
         
+        """
+            Embedding generates learnable representation of an input sequence which encodes
+            contextual, semantic meaning for each word.
+            Params:
+                d_model(int): specifies the embedding dimension for each token/word
+                vocab_size(int): number of embeddings that would be needed. # of unique words
+                max_seq_len(int): the maximum sequence length of an input sequence. Used for generation positional encoding
+                dropout(float): probability of dropout applied on the final embedding output
+        """
+        
         super().__init__()
         self.d_model = d_model
         self.vocab_size = vocab_size
