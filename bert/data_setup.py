@@ -89,13 +89,13 @@ class IMDBBERTDataset(Dataset):
         for sentence in data_iter:
             yield self.tokenizer(sentence)
     
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, int, int, int]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         token_ids = self.token_ids[index]
         segment_tokens = self.segment_tokens[index]
         masked_token = self.masked_token[index]
         masked_idx = self.masked_idx[index]
         is_next = self.is_next[index]
-        return torch.tensor(token_ids), torch.tensor(segment_tokens), masked_token, masked_idx, is_next
+        return torch.tensor(token_ids), torch.tensor(segment_tokens), torch.tensor(masked_token), torch.tensor(masked_idx), torch.tensor(is_next)
     
     def __len__(self) -> int:
         return self.bert_df.shape[0]
