@@ -12,3 +12,5 @@ pip install -r requirements.txt
 * [Datapipes-repo](https://github.com/rasbt/datapipes-blog/blob/main/0_download-and-prep-data.ipynb)
 * [Bert Data preparation](https://coaxsoft.com/blog/building-bert-with-pytorch-from-scratch)
 * [IMDB Dataset](https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews)
+* [Karpathy - minGPT](https://www.youtube.com/watch?v=kCc8FmEb1nY&t=699s)
+* [GPT](https://s3-us-west-2.amazonaws.com/openai-assets/research-covers/language-unsupervised/language_understanding_paper.pdf)
