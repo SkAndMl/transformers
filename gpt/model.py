@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import math
+from typing import Tuple
 
 class Embedding(nn.Module):
 
@@ -143,7 +144,51 @@ class GPTDecoder(nn.Module):
         for block in self.blocks:
             x = block(x, mask)
         return x
+    
+class PoemGPT(nn.Module):
 
+    def __init__(self, config, vocab_size) -> None:
+        
+        super().__init__()
+        self.context_length = config["context_length"]
+        self.embedding = Embedding(config, vocab_size)
+        self.gpt = GPTDecoder(config)
+        self.lm_head = nn.Linear(config["d_model"], vocab_size)
+    
+    def forward(self,
+                x: torch.Tensor,
+                targets: torch.Tensor = None) -> Tuple[torch.Tensor, torch.Tensor]:
+        
+        B, S = x.shape
+        # x -> [B, S], targets -> [B, S]
+        x = self.embedding(x) # B, S, D_MODEL
+        mask = create_causal_mask(S)
+        
+        x = self.gpt(x, mask) # B, S, D_MODEL
+        logits = self.lm_head(x) # B, S, VOCAB_SIZE
+
+        if targets is None:
+            loss = None
+        else:
+            logits = logits.view(B*S, -1)
+            targets = targets.view(-1)
+            loss = F.cross_entropy(logits, targets)
+        return logits, loss
+    
+
+    def generate(self, x:torch.Tensor=None, max_new_tokens: int=500) -> torch.Tensor:
+
+        if x is None:
+            x = torch.zeros((1, 1)) # B, S
+        
+        for _ in range(max_new_tokens):
+            preds, _ = self(x[:, -self.context_length:])# B, S, VOCAB_SIZE
+            preds = preds[:, -1, :] # B, VOCAB_SIZE
+            probs = F.softmax(preds, dim=-1)
+            x_next = torch.multinomial(input=probs, num_samples=1) # B, 1
+            x = torch.cat((x, x_next), dim=1) # B, S+1
+
+        return x
 
 
 def create_causal_mask(sz):
@@ -151,5 +196,3 @@ def create_causal_mask(sz):
     mask = torch.tril(mask)
     return mask
 
-
-print("hi")
