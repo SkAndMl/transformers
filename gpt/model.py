@@ -4,6 +4,8 @@ from torch.nn import functional as F
 import math
 from typing import Tuple
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
 class Embedding(nn.Module):
 
     def __init__(self,
@@ -31,7 +33,8 @@ class Embedding(nn.Module):
         # x => [B, S]
         B, S = x.shape
         token_emb = self.token_embedding_table(x) # [B, S, D]
-        pos_emb = self.position_embedding_table(torch.arange(S, dtype=torch.long)).unsqueeze(0) # [1, S, D]
+
+        pos_emb = self.position_embedding_table(torch.arange(S, device=device)).unsqueeze(0) # [1, S, D]
         out = self.dropout(token_emb+pos_emb)
         return self.dropout(out)
     
@@ -67,9 +70,9 @@ class AttentionHead(nn.Module):
         v = self.value(value) # B, K, HEAD_DIM
 
         weights = q @ k.transpose(1, 2) # B, Q, K
-        if mask:
+        if mask is not None:
             weights = weights.masked_fill(mask==0, value=float("-inf"))
-        weights = F.softmax(weights/math.sqrt(self.head_dim))
+        weights = F.softmax(weights/math.sqrt(self.head_dim), dim=-1)
         out = weights @ v # [B, Q, K] x [B, K, HEAD_DIM] => [B, Q, HEAD_DIM]
         return self.dropout(out)
 
@@ -178,7 +181,7 @@ class PoemGPT(nn.Module):
     def generate(self, x:torch.Tensor=None, max_new_tokens: int=500) -> torch.Tensor:
 
         if x is None:
-            x = torch.zeros((1, 1)) # B, S
+            x = torch.zeros((1, 1), dtype=torch.long, device=device) # B, S
         
         for _ in range(max_new_tokens):
             preds, _ = self(x[:, -self.context_length:])# B, S, VOCAB_SIZE
@@ -191,6 +194,6 @@ class PoemGPT(nn.Module):
 
 
 def create_causal_mask(sz):
-    mask = torch.ones((sz, sz))
+    mask = torch.ones((sz, sz), device=device)
     mask = torch.tril(mask)
     return mask
