@@ -1,0 +1,10 @@
+{
+    "d_model" : 512,
+    "dropout" : 0.2,
+    "epochs" : 10,
+    "head_dim" : 64,
+    "learning_rate" : 3e-5,
+    "n_decoders" : 6,
+    "n_encoders" : 6,
+    "n_heads" : 8
+}
