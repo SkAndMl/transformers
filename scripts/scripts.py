@@ -8,10 +8,8 @@ from typing import Tuple
 class Embedding(nn.Module):
 
     def __init__(self,
-                 d_model: int=512,
-                 vocab_size: int=1000,
-                 max_seq_len: int=10,
-                 dropout: float=0.2):
+                 config,
+                 vocab_size):
         """
             Embedding generates learnable representation of an input sequence which encodes
             contextual, semantic meaning for each word.
@@ -23,14 +21,13 @@ class Embedding(nn.Module):
         """
         
         super().__init__()
-        self.d_model = d_model
         self.vocab_size = vocab_size
 
         self.token_embedding_table = nn.Embedding(num_embeddings=vocab_size,
-                                                  embedding_dim=d_model)
-        self.position_embedding_table = nn.Embedding(num_embeddings=max_seq_len,
-                                                     embedding_dim=d_model)
-        self.dropout = nn.Dropout(p=dropout)
+                                                  embedding_dim=config["d_model"])
+        self.position_embedding_table = nn.Embedding(num_embeddings=config["context_length"],
+                                                     embedding_dim=config["d_model"])
+        self.dropout = nn.Dropout(p=config["dropout"])
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x => [B, S]
