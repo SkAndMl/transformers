@@ -1,4 +1,5 @@
 {
+    "context_length" : 512,
     "d_model" : 512,
     "dropout" : 0.2,
     "epochs" : 10,
