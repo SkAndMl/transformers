@@ -11,10 +11,10 @@ from model import PoemGPT
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-with open("./poem_gpt_config.json", "r") as f:
+with open("../config/poem_gpt_config.json", "r") as f:
     config = json.load(f)
 
-with open("./input.txt", "r", encoding="utf-8") as f:
+with open("./data/input.txt", "r", encoding="utf-8") as f:
     data = f.read()
 
 
