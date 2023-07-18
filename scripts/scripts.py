@@ -138,7 +138,7 @@ class MultiHeadAttention(nn.Module):
                 value: torch.Tensor,
                 mask=None) -> torch.Tensor:
         
-        out = torch.cat([h(query, key, value) for h in self.sa_heads], dim=-1)
+        out = torch.cat([h(query, key, value, mask) for h in self.sa_heads], dim=-1)
         out = self.proj(out)
         return self.dropout(out)
 
@@ -178,7 +178,7 @@ class EncoderBlock(nn.Module):
                 x: torch.Tensor,
                 mask=None) -> torch.Tensor:
         
-        x = x + self.mha(self.ln1(x), self.ln1(x), self.ln1(x))
+        x = x + self.mha(self.ln1(x), self.ln1(x), self.ln1(x), mask)
         x = x + self.ff(self.ln2(x))
         return x
 
@@ -197,7 +197,42 @@ class Encoder(nn.Module):
         for block in self.blocks:
             x = block(x, mask)
         return x
+    
+class GPTDecoderBlock(nn.Module):
 
+    def __init__(self, config) -> None:
+
+        super().__init__()
+        self.mha = MultiHeadAttention(config)
+        self.ff = FeedForward(config)
+        self.ln_1 = nn.LayerNorm(normalized_shape=config["d_model"])
+        self.ln_2 = nn.LayerNorm(normalized_shape=config["d_model"])
+
+    def forward(self, x: torch.Tensor, mask=None) -> torch.Tensor:
+
+        x = x + self.mha(self.ln_1(x), self.ln_1(x), self.ln_1(x), mask)
+        x = x + self.ff(self.ln_2(x))
+        return x
+
+class GPTDecoder(nn.Module):
+
+    def __init__(self, config) -> None:
+
+        super().__init__()
+        self.blocks = nn.ModuleList([GPTDecoderBlock(config) for _ in range(config["n_decoders"])])
+    
+    def forward(self, x: torch.Tensor, mask=None) -> torch.Tensor:
+
+        for block in self.blocks:
+            x = block(x, mask)
+        return x
+
+
+
+def create_causal_mask(sz):
+    mask = torch.ones((sz, sz))
+    mask = torch.tril(mask)
+    return mask
 
 def create_padding_mask(batch: torch.Tensor,
                         padding_idx: int=0) -> torch.Tensor:
