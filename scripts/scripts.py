@@ -1,18 +1,17 @@
 from torch import nn
 import torch
+from torch.nn import functional as F
 import math
-
 from typing import Tuple
 
 
-class TransformerEmbedding(nn.Module):
+class Embedding(nn.Module):
 
     def __init__(self,
                  d_model: int=512,
                  vocab_size: int=1000,
                  max_seq_len: int=10,
-                 dropout: float=0.1):
-        
+                 dropout: float=0.2):
         """
             Embedding generates learnable representation of an input sequence which encodes
             contextual, semantic meaning for each word.
@@ -27,24 +26,20 @@ class TransformerEmbedding(nn.Module):
         self.d_model = d_model
         self.vocab_size = vocab_size
 
-        self.embedding = nn.Embedding(num_embeddings=vocab_size,
-                                      embedding_dim=d_model)
-        self.pe = torch.zeros(max_seq_len, d_model, requires_grad=False)
-        
-        for i in range(max_seq_len):
-            for j in range(d_model):
-                if j%2==0:
-                    self.pe[i, j] = math.sin(i/(10000**(2*j/d_model)))
-                else:
-                    self.pe[i, j] = math.cos(i/(10000**(2*j/d_model)))
-        
-        self.pe = self.pe.unsqueeze(0)
+        self.token_embedding_table = nn.Embedding(num_embeddings=vocab_size,
+                                                  embedding_dim=d_model)
+        self.position_embedding_table = nn.Embedding(num_embeddings=max_seq_len,
+                                                     embedding_dim=d_model)
         self.dropout = nn.Dropout(p=dropout)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x -> [batch_size, seq_len]
-        embed_out = self.embedding(x) # embed_out -> [batch_size, seq_len, d_model]
-        return self.dropout(self.pe[:, embed_out.size(1), :] + embed_out)
+        # x => [B, S]
+        B, S = x.shape
+        token_emb = self.token_embedding_table(x) # [B, S, D]
+        pos_emb = self.position_embedding_table(torch.arange(S, dtype=torch.long)) # [S, D]
+        out = self.dropout(token_emb+pos_emb)
+        return self.dropout(out)
+
     
 
 class BERTEmbedding(nn.Module):
@@ -53,8 +48,7 @@ class BERTEmbedding(nn.Module):
                  d_model: int=512,
                  vocab_size: int=1000,
                  max_seq_len: int=100,
-                 dropout: float=0.1,
-                 device="cpu") -> None:
+                 dropout: float=0.1) -> None:
 
         super().__init__()
         self.d_model = d_model
@@ -93,143 +87,119 @@ class BERTEmbedding(nn.Module):
     
 
 
-class MultiHeadAttentionLayer(nn.Module):
+class AttentionHead(nn.Module):
 
-    def __init__(self, 
-                 d_model: int=512,
-                 num_heads: int=8):
+    def __init__(self,
+                 config) -> None:
         
         super().__init__()
-        self.d_model = d_model
-        self.num_heads = num_heads
 
-        assert d_model%num_heads == 0, f"Dimensionality of the model {d_model} should be divisible by the number of heads {num_heads}"
+        self.d_model = config["d_model"]
+        self.head_dim = config["head_dim"]
 
-        self.W_v = nn.Linear(d_model, d_model)
-        self.W_k = nn.Linear(d_model, d_model)
-        self.W_q = nn.Linear(d_model, d_model)
-        self.W_o = nn.Linear(d_model, d_model)
-    
-    @staticmethod
-    def scaled_dot_product_attention(query: torch.Tensor,
-                                     key: torch.Tensor,
-                                     value: torch.Tensor,
-                                     mask=None) -> Tuple[torch.Tensor, torch.Tensor]:
-        # query = key = value -> [batch, query_len/key_len/value_len, num_heads, d_k]
-        d_k = query.size(-1)
-        compatability = torch.einsum("bqhd,bkhd->bhqk", [query, key]) # compatability -> [batch, num_heads, query_len, key_len]
-        if mask is not None:
-            compatability = compatability.masked_fill(mask==0, -float("inf"))
-        compatability = torch.softmax(compatability, dim=-1)/math.sqrt(d_k)
-        x = torch.einsum("bhqk,bkhd->bqhd", [compatability, value]) # x -> [batch, query_len, num_heads, d_k]
-        return x, compatability
-    
+        self.query = nn.Linear(self.d_model, self.head_dim)
+        self.key = nn.Linear(self.d_model, self.head_dim)
+        self.value = nn.Linear(self.d_model, self.head_dim)
+        self.dropout = nn.Dropout(p=config["dropout"])
+
     def forward(self,
                 query: torch.Tensor,
                 key: torch.Tensor,
                 value: torch.Tensor,
-                mask=None):
+                mask=None) -> torch.Tensor:
         
-        b, query_len, key_len, d_k = query.shape[0], query.shape[1], key.shape[1], self.d_model//self.num_heads 
-        query, key, value = self.W_q(query), self.W_k(key), self.W_v(value)
-        query = query.view(b, query_len, self.num_heads, d_k)
-        key = key.view(b, key_len, self.num_heads, d_k)
-        value = value.view(b, key_len, self.num_heads, d_k)
-        x, _ = MultiHeadAttentionLayer.scaled_dot_product_attention(query, key, value, mask)
-        return self.W_o(x.reshape(b, query_len, self.d_model))
-    
+        # query => [B, Q, D]
+        # key => [B, K, D]
+        # value => [B, K, D]
 
-class MultiHeadAttentionBlock(nn.Module):
+        q = self.query(query) # B, Q, HEAD_DIM 
+        k = self.key(key) # B, K, HEAD_DIM
+        v = self.value(value) # B, K, HEAD_DIM
+
+        weights = q @ k.transpose(1, 2) # B, Q, K
+        if mask:
+            weights = weights.masked_fill(mask==0, value=float("-inf"))
+        weights = F.softmax(weights/math.sqrt(self.head_dim))
+        out = weights @ v # [B, Q, K] x [B, K, HEAD_DIM] => [B, Q, HEAD_DIM]
+        return self.dropout(out)
+
+
+
+class MultiHeadAttention(nn.Module):
 
     def __init__(self,
-                 d_model: int=512,
-                 num_heads: int=8,
-                 dropout: float=0.1) -> None:
-        super().__init__()
-        self.multihead_attention = MultiHeadAttentionLayer(d_model, num_heads)
-        self.dropout = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm(normalized_shape=d_model)
-    
-    def forward(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor, mask=None) -> torch.Tensor:
-        return self.layer_norm(query + self.dropout(self.multihead_attention(query, key, value, mask)))
-    
+                 config) -> None:
+         
+         super().__init__()
+         self.sa_heads = nn.ModuleList([AttentionHead(config) for _ in range(config["n_heads"])])
+         self.proj = nn.Linear(config["d_model"], config["d_model"])
+         self.dropout = nn.Dropout(p=config["dropout"])
+        
+    def forward(self, 
+                query: torch.Tensor,
+                key: torch.Tensor,
+                value: torch.Tensor,
+                mask=None) -> torch.Tensor:
+        
+        out = torch.cat([h(query, key, value) for h in self.sa_heads], dim=-1)
+        out = self.proj(out)
+        return self.dropout(out)
 
-class FeedForwardBlock(nn.Module):
+
+class FeedForward(nn.Module):
 
     def __init__(self,
-                 d_model: int=512,
-                 d_ff: int=2048,
-                 dropout: float=0.1) -> None:
+                 config):
         
         super().__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(d_model, d_ff),
+        d_model = config["d_model"]
+        self.net = nn.Sequential(
+            nn.Linear(d_model, d_model*4),
             nn.ReLU(),
-            nn.Linear(d_ff, d_model)
+            nn.Linear(d_model*4, d_model),
+            nn.Dropout(p=config["dropout"])
         )
-        self.dropout = nn.Dropout(p=dropout)
-        self.layer_norm = nn.LayerNorm(normalized_shape=d_model)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.layer_norm(x + self.dropout(self.fc(x)))
-    
 
-class TransformerEncoderLayer(nn.Module):
-
-    def __init__(self,
-                 d_model: int=512,
-                 num_heads: int=8,
-                 d_ff: int=2048,
-                 attn_dropout: float=0.1,
-                 ff_dropout: float=0.1) -> None:
-        
-        super().__init__()
-        self.multihead_attention_block = MultiHeadAttentionBlock(d_model, num_heads, attn_dropout)
-        self.ff_block = FeedForwardBlock(d_model, d_ff, ff_dropout)
-    
-    def forward(self, x: torch.Tensor, mask=None) -> torch.Tensor:
-
-        return self.ff_block(self.multihead_attention_block(x, x, x, mask))
-
-
-class TransformerEncoder(nn.Module):
-
-    def __init__(self,
-                 num_encoders: int=6,
-                 d_model: int=512,
-                 num_heads: int=8,
-                 d_ff: int=2048,
-                 attn_dropout: float=0.1,
-                 ff_dropout: float=0.1) -> None:
-        
-        super().__init__()
-        self.num_encoders = num_encoders
-        self.encoders = nn.ModuleList([TransformerEncoderLayer(d_model, num_heads, d_ff, attn_dropout, ff_dropout) for _ in range(num_encoders)])
-    
-    def forward(self, x: torch.Tensor, mask=None) -> torch.Tensor:
-
-        for i in range(self.num_encoders):
-            x = self.encoders[i](x, mask)
+        x = self.net(x)
         return x
-    
-class TransformerDecoderLayer(nn.Module):
+
+
+class EncoderBlock(nn.Module):
 
     def __init__(self,
-                 d_model: int=512,
-                 num_heads: int=8,
-                 d_ff: int=2048,
-                 attn_dropout: float=0.1,
-                 ff_dropout: float=0.1) -> None:
+                 config) -> None:
         
         super().__init__()
-        self.multihead_attention_block = MultiHeadAttentionBlock(d_model, num_heads, attn_dropout)
-        self.cross_attention_block = MultiHeadAttentionBlock(d_model, num_heads, attn_dropout)
-        self.ff_block = FeedForwardBlock(d_model, d_ff, ff_dropout)
+        self.mha = MultiHeadAttention(config)
+        self.ln1 = nn.LayerNorm(normalized_shape=config["d_model"])
+        self.ff = FeedForward(config)
+        self.ln2 = nn.LayerNorm(normalized_shape=config["d_model"])
     
-    def forward(self, x: torch.Tensor, encoder_output: torch.Tensor, src_mask=None, tgt_mask=None) -> torch.Tensor:
-        x = self.multihead_attention_block(x, x, x, tgt_mask)
-        x = self.cross_attention_block(x, encoder_output, encoder_output, src_mask)
-        return self.ff_block(x)
+    def forward(self,
+                x: torch.Tensor,
+                mask=None) -> torch.Tensor:
+        
+        x = x + self.mha(self.ln1(x), self.ln1(x), self.ln1(x))
+        x = x + self.ff(self.ln2(x))
+        return x
+
+class Encoder(nn.Module):
+
+    def __init__(self,
+                 config) -> None:
+        
+        super().__init__()
+        self.blocks = nn.ModuleList([EncoderBlock(config) for _ in range(config["n_encoders"])])
+    
+    def forward(self,
+                x: torch.Tensor,
+                mask=None):
+        
+        for block in self.blocks:
+            x = block(x, mask)
+        return x
 
 
 def create_padding_mask(batch: torch.Tensor,
