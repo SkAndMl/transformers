@@ -7,7 +7,7 @@ pip install -r requirements.txt
 PoemGPT is a decoder-only transformer model that generates poems similar to that of Shakespeare's
 You can generate poems by running the following command in the terminal
 ```bash
-python gen_poem.py --num_chars <num_chars in poem>
+python gen_poem.py --num_tokens <num_chars in poem>
 ```
 ```
 PRINCE PEY:
