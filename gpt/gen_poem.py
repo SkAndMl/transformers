@@ -1,6 +1,5 @@
 import torch
 import json
-import sys
 import time
 import argparse
 from model import PoemGPT
@@ -31,10 +30,9 @@ def print_like_gpt(text):
         time.sleep(0.02)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        num_tokens = int(sys.argv[2])
-    else:
-        num_tokens = 500
-    out = poem_gpt.generate(max_new_tokens=num_tokens) # [1, S]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-n", "--num_tokens", required=True, metavar="", type=int)
+    args = parser.parse_args()
+    out = poem_gpt.generate(max_new_tokens=args.num_tokens) # [1, S]
     text = decode(out[0].cpu().numpy())[1:]
     print_like_gpt(text=text)
