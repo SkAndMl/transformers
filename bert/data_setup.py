@@ -84,7 +84,8 @@ class IMDBMaskedBertDataset(Dataset):
             self.sentences[i] = sentence
 
 if __name__ == "__main__":
-    ds = IMDBBERTDataset(path=URL)
-    print(f"Shape: {ds.bert_df.shape}")
-    print(ds.bert_df.head(10))
-    print(ds[0])
+    ds = IMDBMaskedBertDataset(path=URL)
+    sentence, masked_token, masked_token_idx = ds[random.randint(0, len(ds)-1)]
+    print(f"Sentence: {sentence}")
+    print(f"Masked token: {masked_token}")
+    print(f"Masked token idx posn: {masked_token_idx}")
