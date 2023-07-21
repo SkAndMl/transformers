@@ -1,62 +1,53 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
 from typing import Tuple
 import sys
 sys.path.insert(0, '..')
-from scripts.scripts import TransformerEncoder
+from scripts.scripts import Embedding, Encoder, create_padding_mask
 
-class BERT(nn.Module):
+class BERTMaskedLM(nn.Module):
+
+    PAD_TOKEN = 0
+    CLS_TOKEN = 1
+    SEP_TOKEN = 2
+    MASK_TOKEN = 3
+    UNK_TOKEN = 4
+
     def __init__(self,
-                 num_layers: int=12,
-                 d_model: int=768,
-                 num_heads: int=12,
-                 vocab_size: int=1000,
-                 d_ff: int=2048,
-                 attn_dropout: float=0.1,
-                 ff_dropout: float=0.1) -> None:
+                 config,
+                 vocab_size: int=1000) -> None:
         super().__init__()
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.num_layers = num_layers
-        self.bert_encoder = TransformerEncoder(num_encoders=num_layers,
-                                               d_model=d_model,
-                                               num_heads=num_heads,
-                                               d_ff=d_ff,
-                                               attn_dropout=attn_dropout,
-                                               ff_dropout=ff_dropout)
-        self.masked_block = nn.Linear(in_features=d_model,
+        self.d_model = config["d_model"]
+        self.n_heads = config["n_heads"]
+        self.n_layers = config["n_encoders"]
+        self.embedding = Embedding(config=config,
+                                   vocab_size=vocab_size)
+        self.bert = Encoder(config=config)
+        self.masked_lm = nn.Linear(in_features=self.d_model,
                                       out_features=vocab_size)
-        self.nsp_block = nn.Linear(in_features=d_model,
-                                        out_features=2)
+        
     
 
     def __repr__(self) -> str:
-        return f"BERT(num_layers={self.num_layers}, d_model={self.d_model}, num_heads={self.num_heads})"
+        return f"BERT(num_layers={self.n_layers}, d_model={self.d_model}, num_heads={self.n_heads})"
     
     def __str__(self) -> str:
-        return f"BERT(num_layers={self.num_layers}, d_model={self.d_model}, num_heads={self.num_heads})"
+        return f"BERT(num_layers={self.n_layers}, d_model={self.d_model}, num_heads={self.n_heads})"
 
     def forward(self,
                 x: torch.Tensor,
                 mask: torch.Tensor,
+                masked_tokens: torch.Tensor,
                 masked_idx: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         
-        """
-            x -> Input embedding, shape: [batch_size, max_seq_len, d_model]
-            mask -> Mask for padding, shape: [batch_size, 1, 1, max_seq_len]
-            masked_idx -> For each sequence a different index position has been masked
-            and the encoder's contextual representation of the masked token will be
-            used to predict the true token. To extract the representation for each 
-            sequence the different index positions are passed in masked_idx which will 
-            be used for indexing the representation. Shape: [batch_size]
-        """
-        x = self.bert_encoder(x, mask) # [batch_size, max_seq_len, d_model]
-        masked_tokens = x[range(len(masked_idx)), masked_idx]
+        # x -> [B, S]
+        x = self.embedding(x) # [B, S, D_MODEL]
+        x = self.bert(x, mask) # [B, S, D_MODEL]
+        x = x[range(len(masked_idx)), masked_idx, :].squeeze() # B, D_MODEL
+        logits = self.masked_lm(x) # B, VOCAB_SIZE
 
-        # For NSP prediction the BERT paper uses the '[CLS]' token which is the 
-        # 0th index in each sequence and it is accessed by indexing '0' along the
-        # first dimension
-        nsp_logits = self.nsp_block(x[:, 0, :]) # x[:, 0, :] -> [batch_size, d_model]
-        masked_tokens_logits = self.masked_block(masked_tokens)
-        return masked_tokens_logits, nsp_logits
+        loss = F.cross_entropy(logits, masked_tokens.squeeze())
+
+        return logits, loss
         
