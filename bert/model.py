@@ -37,10 +37,11 @@ class BERTMaskedLM(nn.Module):
 
     def forward(self,
                 x: torch.Tensor,
-                mask: torch.Tensor,
                 masked_tokens: torch.Tensor,
                 masked_idx: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         
+        mask = create_padding_mask(batch=x, padding_idx=self.PAD_TOKEN)
+
         # x -> [B, S]
         x = self.embedding(x) # [B, S, D_MODEL]
         x = self.bert(x, mask) # [B, S, D_MODEL]
