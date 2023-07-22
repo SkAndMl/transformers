@@ -72,7 +72,7 @@ class AttentionHead(nn.Module):
         weights = q @ k.transpose(1, 2) # B, Q, K
         if mask is not None:
             weights = weights.masked_fill(mask==0, value=float("-inf"))
-        weights = F.softmax(weights/math.sqrt(self.head_dim))
+        weights = F.softmax(weights/math.sqrt(self.head_dim), dim=-1)
         out = weights @ v # [B, Q, K] x [B, K, HEAD_DIM] => [B, Q, HEAD_DIM]
         return self.dropout(out)
 
