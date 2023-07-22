@@ -15,8 +15,18 @@ bert.load_state_dict(torch.load("../weights/bert_masked_lm.pt",
                                 map_location=torch.device(device=device)))
 ```
 Pre-trained weights results
-
-<img width="521" alt="Screenshot 2023-07-22 at 9 21 30 PM" src="https://github.com/SkAndMl/transformers/assets/86184014/70cbf720-0a4d-4383-8b89-c2e3292aab0a">
+| Epoch | Loss | Accuracy |
+| ----- | ---- | -------- |
+|   1   | 6.21 |  13.92%  |
+|   2   | 4.93 |  21.74%  |
+|   3   | 4.23 |  25.67%  |
+|   4   | 3.59 |  29.35%  |
+|   5   | 2.99 |  35.15%  |
+|   6   | 2.46 |  43.26%  |
+|   7   | 2.03 |  50.69%  |
+|   8   | 1.70 |  56.99%  |
+|   9   | 1.45 |  62.2%   |
+|   10  | 1.24 |  67.02%  |
 
 ## PoemGPT
 PoemGPT is a decoder-only transformer model that generates poems similar to that of Shakespeare's
