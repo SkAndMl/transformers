@@ -3,6 +3,21 @@ Run the following command once the repository has been cloned
 ```python
 pip install -r requirements.txt
 ```
+## BERTMaskedLM
+You can train the BERTMaskedLM model built by running the following command
+```bash
+python train.py
+```
+Or you can load the pre-trained weigths using
+```python
+bert = BERTMaskedLM(config=config, vocab_size=vocab_size)
+bert.load_state_dict(torch.load("../weights/bert_masked_lm.pt",
+                                map_location=torch.device(device=device)))
+```
+Pre-trained weights results
+
+<img width="521" alt="Screenshot 2023-07-22 at 9 21 30 PM" src="https://github.com/SkAndMl/transformers/assets/86184014/70cbf720-0a4d-4383-8b89-c2e3292aab0a">
+
 ## PoemGPT
 PoemGPT is a decoder-only transformer model that generates poems similar to that of Shakespeare's
 You can generate poems by running the following command in the terminal
