@@ -25,6 +25,78 @@ SEP_TOKEN = 2
 MASK_TOKEN = 3
 UNK_TOKEN = 4
 
+
+def train_step(bert: BERTMaskedLM,
+               data_loader: DataLoader,
+               optimizer: torch.optim.Optimizer,
+               device: torch.device="cpu") -> Tuple[float ,float]:
+    
+    loss, acc = 0, 0
+    bert.train()
+    for batch, (sentence, masked_token, masked_token_idx) in enumerate(data_loader):
+        sentence = sentence.to(device)
+        masked_token = masked_token.to(device)
+        masked_token_idx = masked_token_idx.to(device)
+
+        logits, loss_ = bert(sentence, masked_token, masked_token_idx)
+        loss += loss_.item()
+        acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
+
+        optimizer.zero_grad(set_to_none=True)
+        loss_.backward()
+        optimizer.step()
+    
+    loss /= len(data_loader)
+    acc /= len(data_loader)
+    return loss, acc.item()
+
+
+def train_step(bert: BERTMaskedLM,
+               data_loader: DataLoader,
+               optimizer: torch.optim.Optimizer,
+               device: torch.device="cpu") -> Tuple[float ,float]:
+    
+    loss, acc = 0, 0
+    bert.train()
+    for batch, (sentence, masked_token, masked_token_idx) in enumerate(data_loader):
+        sentence = sentence.to(device)
+        masked_token = masked_token.to(device)
+        masked_token_idx = masked_token_idx.to(device)
+
+        logits, loss_ = bert(sentence, masked_token, masked_token_idx)
+        loss += loss_.item()
+        acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
+
+        optimizer.zero_grad(set_to_none=True)
+        loss_.backward()
+        optimizer.step()
+    
+    loss /= len(data_loader)
+    acc /= len(data_loader)
+    return loss, acc.item()
+
+
+def test_step(bert: BERTMaskedLM,
+              data_loader: DataLoader,
+              device: torch.device="cpu") -> Tuple[float, float]:
+    
+    loss, acc = 0, 0
+    bert.eval()
+    with torch.inference_mode():
+        for batch, (sentence, masked_token, masked_token_idx) in enumerate(data_loader):
+            sentence = sentence.to(device)
+            masked_token = masked_token.to(device)
+            masked_token_idx = masked_token_idx.to(device)
+
+            logits, loss_ = bert(sentence, masked_token, masked_token_idx)
+            loss += loss_.item()
+            acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
+    
+    loss /= len(data_loader)
+    new_acc = acc.item()/len(data_loader)
+    return loss, new_acc
+
+
 def train_masked_lm(bert: BERTMaskedLM,
                     train_data_loader: DataLoader,
                     val_data_loader: DataLoader,
@@ -37,42 +109,10 @@ def train_masked_lm(bert: BERTMaskedLM,
     test_accs = []
     bert = bert.to(device)
     for epoch in range(1, config["train_iters"]+1):
-        train_loss = 0
-        train_acc = 0
-        bert.train()
-        for batch, (sentence, masked_token, masked_token_idx) in enumerate(train_data_loader):
-            sentence = sentence.to(device)
-            masked_token = masked_token.to(device)
-            masked_token_idx = masked_token_idx.to(device)
-
-            logits, loss = bert(sentence, masked_token, masked_token_idx)
-            train_loss += loss.item()
-            train_acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
-
-            optimizer.zero_grad(set_to_none=True)
-            loss.backward()
-            optimizer.step()
-
-        test_loss, test_acc = 0, 0
-        bert.eval()
-        with torch.inference_mode():
-            for batch, (sentence, masked_token, masked_token_idx) in enumerate(val_data_loader):
-                sentence = sentence.to(device)
-                masked_token = masked_token.to(device)
-                masked_token_idx = masked_token_idx.to(device)
-
-                logits, loss = bert(sentence, masked_token, masked_token_idx)
-                test_loss += loss.item()
-                test_acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
-
-        
-
-        train_loss /= len(train_data_loader)
-        train_acc /= len(train_data_loader)
-        test_loss /= len(val_data_loader)
-        test_acc /= len(val_data_loader)
-        print(f"epoch {epoch}: train_loss: {train_loss:.4f} acc: {round(train_acc.item()*100, 2)}% ",end="")
-        print(f"test_loss: {test_loss: .4f} test_acc: {round(test_acc.item()*100, 2)}%")
+        train_loss, train_acc = train_step(bert, train_data_loader, optimizer, device)
+        test_loss, test_acc = test_step(bert, val_data_loader, device)
+        print(f"epoch {epoch}: train_loss: {train_loss:.4f} acc: {round(train_acc*100, 2)}% ",end="")
+        print(f"test_loss: {test_loss: .4f} test_acc: {round(test_acc*100, 2)}%")
         train_losses.append(train_loss)
         train_accs.append(train_acc)
         test_losses.append(test_loss)
@@ -110,4 +150,5 @@ train_losses, train_accs, test_losses, test_accs = train_masked_lm(bert=bert,
 
 torch.save(obj=bert.state_dict(),
            f="../weights/bert_masked_lm.pt")
+
 
