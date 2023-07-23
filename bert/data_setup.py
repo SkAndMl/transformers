@@ -21,13 +21,15 @@ class IMDBMaskedBertDataset(Dataset):
 
     def __init__(self,
                  path: str,
+                 vocab,
+                 tokenizer,
                  max_len: int=10) -> None:
         super().__init__()
         self.max_len = max_len
         self.df = pd.read_csv(path)
 
-        self.tokenizer = get_tokenizer(tokenizer="spacy",
-                                       language="en_core_web_sm")
+        self.tokenizer = tokenizer
+        self.vocab = vocab
 
         self.masked_tokens = []
         self.masked_token_idxs = []
@@ -45,10 +47,6 @@ class IMDBMaskedBertDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return self.sentences[index], self.masked_tokens[index], self.masked_token_idxs[index]
     
-    def _build_vocab(self, data_iter):
-        for sent in data_iter:
-            yield self.tokenizer(sent)
-
 
     def _prepare_data(self):
 
@@ -56,12 +54,6 @@ class IMDBMaskedBertDataset(Dataset):
             for sent in self.df.iloc[i, 0].split('. '):
                 if 1 < len(self.tokenizer(sent)) <= self.max_len:
                     self.sentences.append(sent)
-        
-        self.vocab = build_vocab_from_iterator(self._build_vocab(self.sentences),
-                                               min_freq=2,
-                                               special_first=True,
-                                               specials=self.SPECIALS)
-        self.vocab.set_default_index(self.UNK_TOKEN)
         
         self._mask_data()
 
