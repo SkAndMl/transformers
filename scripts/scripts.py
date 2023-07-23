@@ -4,6 +4,8 @@ from torch.nn import functional as F
 import math
 from typing import Tuple
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 class Embedding(nn.Module):
 
@@ -22,7 +24,6 @@ class Embedding(nn.Module):
         
         super().__init__()
         self.vocab_size = vocab_size
-
         self.token_embedding_table = nn.Embedding(num_embeddings=vocab_size,
                                                   embedding_dim=config["d_model"])
         self.position_embedding_table = nn.Embedding(num_embeddings=config["context_length"],
@@ -33,7 +34,8 @@ class Embedding(nn.Module):
         # x => [B, S]
         B, S = x.shape
         token_emb = self.token_embedding_table(x) # [B, S, D]
-        pos_emb = self.position_embedding_table(torch.arange(S, dtype=torch.long)) # [S, D]
+
+        pos_emb = self.position_embedding_table(torch.arange(S, device=device)).unsqueeze(0) # [1, S, D]
         out = self.dropout(token_emb+pos_emb)
         return self.dropout(out)
 
