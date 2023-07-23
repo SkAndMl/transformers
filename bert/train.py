@@ -14,7 +14,7 @@ from model import BERTMaskedLM
 
 from torch.utils.data import DataLoader
 
-URL = "https://github.com/SK7here/Movie-Review-Sentiment-Analysis/raw/master/IMDB-Dataset.csv"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 with open("../config/base_config.json", "r") as f:
     config = json.load(f)
@@ -26,46 +26,73 @@ MASK_TOKEN = 3
 UNK_TOKEN = 4
 
 def train_masked_lm(bert: BERTMaskedLM,
-                    data_loader: DataLoader,
+                    train_data_loader: DataLoader,
+                    val_data_loader: DataLoader,
                     optimizer: torch.optim.Optimizer,
-                    device: torch.device="cpu") -> Tuple[List[int], List[int]]:
+                    device: torch.device="cpu") -> Tuple[List[int], List[int], List[int], List[int]]:
 
-    losses = []
-    accs = []
+    train_losses = []
+    test_losses = []
+    train_accs = []
+    test_accs = []
     bert = bert.to(device)
-    bert.train()
     for epoch in range(1, config["train_iters"]+1):
-        epoch_loss = 0
-        epoch_acc = 0
-        for batch, (sentence, masked_token, masked_token_idx) in enumerate(data_loader):
+        train_loss = 0
+        train_acc = 0
+        bert.train()
+        for batch, (sentence, masked_token, masked_token_idx) in enumerate(train_data_loader):
             sentence = sentence.to(device)
             masked_token = masked_token.to(device)
             masked_token_idx = masked_token_idx.to(device)
 
             logits, loss = bert(sentence, masked_token, masked_token_idx)
-            epoch_loss += loss.item()
-            epoch_acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
+            train_loss += loss.item()
+            train_acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
 
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
             optimizer.step()
 
-        epoch_loss /= len(data_loader)
-        epoch_acc /= len(data_loader)
-        print(f"epoch {epoch}: loss: {epoch_loss:.4f} acc: {round(epoch_acc.item()*100, 2)}%")
-        losses.append(epoch_loss)
-        accs.append(epoch_acc)
+        test_loss, test_acc = 0, 0
+        bert.eval()
+        with torch.inference_mode():
+            for batch, (sentence, masked_token, masked_token_idx) in enumerate(val_data_loader):
+                sentence = sentence.to(device)
+                masked_token = masked_token.to(device)
+                masked_token_idx = masked_token_idx.to(device)
 
-    return losses, accs
+                logits, loss = bert(sentence, masked_token, masked_token_idx)
+                test_loss += loss.item()
+                test_acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
+
+        
+
+        train_loss /= len(train_data_loader)
+        train_acc /= len(train_data_loader)
+        test_loss /= len(val_data_loader)
+        test_acc /= len(val_data_loader)
+        print(f"epoch {epoch}: train_loss: {train_loss:.4f} acc: {round(train_acc.item()*100, 2)}% ",end="")
+        print(f"test_loss: {test_loss: .4f} test_acc: {round(test_acc.item()*100, 2)}%")
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
+        test_losses.append(test_loss)
+        test_accs.append(test_acc)
+
+    return train_losses, train_accs, test_losses, test_accs
 
 print("Loading data")
 
-masked_ds = IMDBMaskedBertDataset(path=URL)
-vocab_size = len(masked_ds.vocab)
+train_masked_ds = IMDBMaskedBertDataset(path="./data/train.csv")
+test_masked_ds = IMDBMaskedBertDataset(path="./data/test.csv")
+vocab_size = max(len(train_masked_ds.vocab), len(test_masked_ds.vocab))
 
-data_loader = DataLoader(dataset=masked_ds,
-                         batch_size=config["batch_size"],
-                         shuffle=True)
+train_data_loader = DataLoader(dataset=train_masked_ds,
+                                batch_size=config["batch_size"],
+                                shuffle=True)
+test_data_loader = DataLoader(dataset=test_masked_ds,
+                              batch_size=config["batch_size"],
+                              shuffle=True)
+
 bert = BERTMaskedLM(config=config,
                     vocab_size=vocab_size)
 optimizer = torch.optim.AdamW(params=bert.parameters(),
@@ -74,9 +101,11 @@ optimizer = torch.optim.AdamW(params=bert.parameters(),
 
 print("Training model")
 
-losses, accs = train_masked_lm(bert=bert,
-                               data_loader=data_loader,
-                               optimizer=optimizer)
+train_losses, train_accs, test_losses, test_accs = train_masked_lm(bert=bert,
+                                                                   train_data_loader=train_data_loader,
+                                                                   val_data_loader=test_data_loader,
+                                                                   optimizer=optimizer,
+                                                                   device=device)
 
 
 torch.save(obj=bert.state_dict(),
