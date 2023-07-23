@@ -51,31 +51,6 @@ def train_step(bert: BERTMaskedLM,
     return loss, acc.item()
 
 
-def train_step(bert: BERTMaskedLM,
-               data_loader: DataLoader,
-               optimizer: torch.optim.Optimizer,
-               device: torch.device="cpu") -> Tuple[float ,float]:
-    
-    loss, acc = 0, 0
-    bert.train()
-    for batch, (sentence, masked_token, masked_token_idx) in enumerate(data_loader):
-        sentence = sentence.to(device)
-        masked_token = masked_token.to(device)
-        masked_token_idx = masked_token_idx.to(device)
-
-        logits, loss_ = bert(sentence, masked_token, masked_token_idx)
-        loss += loss_.item()
-        acc += (logits.argmax(dim=-1).squeeze()==masked_token.squeeze()).sum()/config["batch_size"]
-
-        optimizer.zero_grad(set_to_none=True)
-        loss_.backward()
-        optimizer.step()
-    
-    loss /= len(data_loader)
-    acc /= len(data_loader)
-    return loss, acc.item()
-
-
 def test_step(bert: BERTMaskedLM,
               data_loader: DataLoader,
               device: torch.device="cpu") -> Tuple[float, float]:
