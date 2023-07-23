@@ -14,19 +14,8 @@ bert = BERTMaskedLM(config=config, vocab_size=vocab_size)
 bert.load_state_dict(torch.load("../weights/bert_masked_lm.pt",
                                 map_location=torch.device(device=device)))
 ```
-Pre-trained weights results
-| Epoch | Loss | Accuracy |
-| ----- | ---- | -------- |
-|   1   | 6.21 |  13.92%  |
-|   2   | 4.93 |  21.74%  |
-|   3   | 4.23 |  25.67%  |
-|   4   | 3.59 |  29.35%  |
-|   5   | 2.99 |  35.15%  |
-|   6   | 2.46 |  43.26%  |
-|   7   | 2.03 |  50.69%  |
-|   8   | 1.70 |  56.99%  |
-|   9   | 1.45 |  62.2%   |
-|   10  | 1.24 |  67.02%  |
+After training for 30 epochs the model was able to achieve an accuracy of **88.58** and a loss of **0.4307**. The results are shown below<br><br>
+![bert_masked_lm_performance](https://github.com/SkAndMl/transformers/assets/86184014/cd33df7d-c088-4f22-a98d-b878610cf1f5)
 
 ## PoemGPT
 PoemGPT is a decoder-only transformer model that generates poems similar to that of Shakespeare's
