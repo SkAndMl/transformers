@@ -14,7 +14,7 @@ bert = BERTMaskedLM(config=config, vocab_size=vocab_size)
 bert.load_state_dict(torch.load("../weights/bert_masked_lm.pt",
                                 map_location=torch.device(device=device)))
 ```
-After training for 30 epochs the model was able to achieve an accuracy of **88.58** and a loss of **0.4307**. The results are shown below<br><br>
+After training for 30 epochs the model was able to achieve an accuracy of **88.58%** and a loss of **0.4307**. The results are shown below<br><br>
 ![bert_masked_lm_performance](https://github.com/SkAndMl/transformers/assets/86184014/cd33df7d-c088-4f22-a98d-b878610cf1f5)
 
 ## PoemGPT
