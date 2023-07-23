@@ -1,5 +1,8 @@
 import torch
 from torch import nn
+from torchtext.data.utils import get_tokenizer
+from torchtext.vocab import build_vocab_from_iterator
+
 import numpy as np
 import pandas as pd
 
@@ -24,6 +27,30 @@ CLS_TOKEN = 1
 SEP_TOKEN = 2
 MASK_TOKEN = 3
 UNK_TOKEN = 4
+
+SPECIALS = ["[PAD]", "[CLS]", "[SEP]", "[MASK]", "[UNK]"]
+
+tokenizer = get_tokenizer(tokenizer="spacy",
+                          language="en_core_web_sm")
+
+def build_vocab(data_iter):
+    for sent in data_iter:
+        yield tokenizer(sent)
+
+def prepare_vocab():
+    df = pd.read_csv("./data/imdb.csv")
+    sentences = []
+    for i in range(df.shape[0]):
+        for sent in df.iloc[i, 0].split('. '):
+            sentences.append(sent)
+    vocab = build_vocab_from_iterator(build_vocab(sentences),
+                                      min_freq=2,
+                                      specials=SPECIALS,
+                                      special_first=True)
+    vocab.set_default_index(UNK_TOKEN)
+    return vocab
+
+vocab = prepare_vocab()
 
 
 def train_step(bert: BERTMaskedLM,
@@ -97,10 +124,14 @@ def train_masked_lm(bert: BERTMaskedLM,
 
 print("Loading data")
 
-train_masked_ds = IMDBMaskedBertDataset(path="./data/train.csv")
-test_masked_ds = IMDBMaskedBertDataset(path="./data/test.csv")
-vocab_size = max(len(train_masked_ds.vocab), len(test_masked_ds.vocab))
-
+train_masked_ds = IMDBMaskedBertDataset(path="./data/train.csv",
+                                        vocab=vocab,
+                                        tokenizer=tokenizer)
+test_masked_ds = IMDBMaskedBertDataset(path="./data/test.csv",
+                                       vocab=vocab,
+                                       tokenizer=tokenizer)
+vocab_size = len(vocab)
+print(f"Vocab size: {vocab_size}")
 train_data_loader = DataLoader(dataset=train_masked_ds,
                                 batch_size=config["batch_size"],
                                 shuffle=True)
