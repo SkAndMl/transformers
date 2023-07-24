@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-with open("../config/base_config.json", "r") as f:
+with open("../config/bert_masked_lm.json", "r") as f:
     config = json.load(f)
 
 PAD_TOKEN = 0
@@ -37,12 +37,13 @@ def build_vocab(data_iter):
     for sent in data_iter:
         yield tokenizer(sent)
 
-def prepare_vocab():
+def prepare_vocab(max_sent_len: int=10):
     df = pd.read_csv("./data/imdb.csv")
     sentences = []
     for i in range(df.shape[0]):
         for sent in df.iloc[i, 0].split('. '):
-            sentences.append(sent)
+            if 1 < len(tokenizer(sent)) <= max_sent_len:    
+                sentences.append(sent)
     vocab = build_vocab_from_iterator(build_vocab(sentences),
                                       min_freq=2,
                                       specials=SPECIALS,
