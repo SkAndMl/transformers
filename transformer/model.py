@@ -75,6 +75,10 @@ class TransformerForSeqToSeq(nn.Module):
 
 
 if __name__ == '__main__':
-    t = TransformerForSeqToSeq()
-    summary(model=t,
-            input_size=[(3, 3, 512), (3, 2, 512)])
+    import json
+    with open("../config/base_config.json") as f:
+        config = json.load(f)
+    t = TransformerForSeqToSeq(config=config)
+    src = torch.arange(start=0, end=6, dtype=torch.long).reshape(shape=(3, 2)).to(device=device)
+    tgt = torch.arange(start=10, end=16, dtype=torch.long).reshape(shape=(3, 2)).to(device=device)
+    summary(model=t, input_data=[src, tgt])
