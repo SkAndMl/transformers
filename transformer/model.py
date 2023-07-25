@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, "..")
 from scripts.scripts import Embedding, Encoder, Decoder, create_causal_mask, create_padding_mask
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "mps" if torch.backends.mps.is_available() else "cpu"
 
 class TransformerForSeqToSeq(nn.Module):
 
@@ -14,13 +14,12 @@ class TransformerForSeqToSeq(nn.Module):
     EOS_TOKEN = 2
 
     def __init__(self, config, 
-                 src_vocab_size: int=1000, tgt_vocab_size: int=1000, 
-                 max_tgt_len: int=12, padding_idx: int=0) -> None:
+                 src_vocab_size: int=1000, tgt_vocab_size: int=1000, padding_idx: int=0) -> None:
         
         super().__init__()
 
         self.padding_idx = padding_idx
-        self.max_tgt_len = max_tgt_len
+        self.config = config
 
         self.src_embedding = Embedding(config=config, vocab_size=src_vocab_size)
         self.tgt_embedding = Embedding(config=config, vocab_size=tgt_vocab_size)    
@@ -55,7 +54,7 @@ class TransformerForSeqToSeq(nn.Module):
             return logits, loss
         else:
             translation = torch.tensor([[self.SOS_TOKEN]], device=device) # 1, 1
-            while translation.shape[-1] < self.max_tgt_len or translation[-1, -1].item()!=self.EOS_TOKEN:
+            while translation.shape[-1] < self.config["context_length"] or translation[-1, -1].item()!=self.EOS_TOKEN:
                 decoder_output = self.decoder(self.tgt_embedding(translation), encoder_output, None, padding_mask) # 1, T+1, D_MODEL
                 logits = self.cls_head(decoder_output).squeeze() # T+1, VOCAB_SIZE
                 next_word = torch.argmax(logits, dim=-1)[-1:, :] # 1, 1
