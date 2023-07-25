@@ -171,6 +171,7 @@ class GPTDecoderBlock(nn.Module):
         x = x + self.mha(self.ln_1(x), self.ln_1(x), self.ln_1(x), mask)
         x = x + self.ff(self.ln_2(x))
         return x
+    
 
 class GPTDecoder(nn.Module):
 
@@ -185,6 +186,39 @@ class GPTDecoder(nn.Module):
             x = block(x, mask)
         return x
 
+
+class DecoderBlock(nn.Module):
+
+    def __init__(self, config) -> None:
+
+        super().__init__()
+        self.mha = MultiHeadAttention(config=config)
+        self.cmha = MultiHeadAttention(config=config)
+        self.ff = FeedForward(config=config)
+        self.ln_1 = nn.LayerNorm(normalized_shape=config["d_model"])
+        self.ln_2 = nn.LayerNorm(normalized_shape=config["d_model"])
+        self.ln_3 = nn.LayerNorm(normalized_shape=config["d_model"])
+    
+    def forward(self, x: torch.Tensor, encoder_output: torch.Tensor,
+                causal_mask: torch.Tensor=None, padding_mask:torch.Tensor=None) -> torch.Tensor:
+
+        x = x + self.mha(self.ln_1(x), self.ln_1(x), self.ln_1(x), causal_mask)
+        x = x + self.cmha(self.ln_2(x), self.ln_2(encoder_output), self.ln_2(encoder_output), padding_mask)
+        x = x + self.ff(self.ln_3(x))
+        return x
+
+class Decoder(nn.Module):
+
+    def __init__(self, config):
+        self.block = nn.ModuleList([DecoderBlock(config=config) for _ in range(config["n_decoders"])])
+    
+    def forward(self, 
+                x: torch.Tensor, encoder_output: torch.Ten,
+                causal_mask: torch.Tensor=None, padding_mask: torch.Tensor=None) -> torch.Tensor:
+        
+        for block in self.block:
+            x = block(x, encoder_output, causal_mask, padding_mask)
+        return x
 
 
 def create_causal_mask(sz):
