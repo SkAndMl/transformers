@@ -4,8 +4,7 @@ from torch.nn import functional as F
 import math
 from typing import Tuple
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
+device = "mps" if torch.backends.mps.is_available() else "cpu"
 
 class Embedding(nn.Module):
 
@@ -35,7 +34,8 @@ class Embedding(nn.Module):
         B, S = x.shape
         token_emb = self.token_embedding_table(x) # [B, S, D]
 
-        pos_emb = self.position_embedding_table(torch.arange(S, device=device)).unsqueeze(0) # [1, S, D]
+        pos_emb = self.position_embedding_table(torch.arange(S)).to(device).unsqueeze(0) # [1, S, D]
+        print(pos_emb.device)
         out = self.dropout(token_emb+pos_emb)
         return self.dropout(out)
 
@@ -232,3 +232,12 @@ def create_padding_mask(batch: torch.Tensor,
     # batch -> [batch_size, max_seq_len]
     mask = batch != padding_idx
     return mask.unsqueeze(1) # mask -> [batch_size, 1, max_seq_len] 
+
+
+if __name__=="__main__":
+    import json
+    with open("../config/base_config.json", "r") as f:
+        config = json.load(f)
+    emb = Embedding(config=config, vocab_size=1000).to(device=device)
+    input = torch.arange(1, 7).reshape(2, 3).to(device)
+    print(emb(input))
