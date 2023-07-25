@@ -210,10 +210,11 @@ class DecoderBlock(nn.Module):
 class Decoder(nn.Module):
 
     def __init__(self, config):
+        super().__init__()
         self.block = nn.ModuleList([DecoderBlock(config=config) for _ in range(config["n_decoders"])])
     
     def forward(self, 
-                x: torch.Tensor, encoder_output: torch.Ten,
+                x: torch.Tensor, encoder_output: torch.Tensor,
                 causal_mask: torch.Tensor=None, padding_mask: torch.Tensor=None) -> torch.Tensor:
         
         for block in self.block:
